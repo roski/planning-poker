@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {connectionView} from '../src/connection.js';
+test('connection grace period ends at five seconds and recovery clears warning',()=>{assert.equal(connectionView({ready:false,elapsed:4999}).tone,'connecting');assert.equal(connectionView({ready:false,elapsed:5000}).label,'Connection issue');assert.equal(connectionView({ready:true,elapsed:9000}).label,'Connected');assert.equal(connectionView({ready:true,alone:true}).label,'Just you');});
+test('creator availability takes priority over healthy relay connection',()=>{assert.equal(connectionView({ready:true,creatorOffline:true}).label,'Creator offline');});

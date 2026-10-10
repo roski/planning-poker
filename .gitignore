@@ -1,0 +1,15 @@
+node_modules/
+data/
+.env
+coverage/
+*.log
+.codex-remote-attachments/
+test-results/
+playwright-report/
+.tmp/
+
+# Local UI screenshots and review fixtures
+docs/
+# Local deployment state and environment overrides
+.vercel/
+.env.*

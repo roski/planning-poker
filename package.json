@@ -1,0 +1,24 @@
+{
+  "name": "open-poker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "One-file planning poker over encrypted Nostr relays. No backend, no database.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node scripts/preview.mjs",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "nostr-tools": "2.23.3"
+  },
+  "devDependencies": {
+    "@fontsource-variable/manrope": "5.3.0",
+    "esbuild": "0.25.12",
+    "ws": "8.22.0"
+  }
+}
