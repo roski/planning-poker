@@ -44,7 +44,7 @@ Default relays are `relay.damus.io`, `nos.lol`, `relay.primal.net`, and `nostr.m
 
 **The room creator coordinates state changes and must keep their tab open.** Participants can reveal votes, start rounds, and change tasks or decks; the coordinator validates and signs the resulting state. The team must trust the creator. Automatic coordinator transfer is not supported.
 
-A normal refresh restores the participant identity, room state, and private vote data from `sessionStorage`. Temporary disconnections trigger resynchronization. If the creator's tab session is lost, create a new room: relays are not a backup, and recent rooms store invitations rather than a permanent room archive.
+A normal refresh restores the participant identity, room state, and private vote data from `sessionStorage`. Temporary disconnections trigger resynchronization. Creator keys and room snapshots are also saved in local browser storage. Reopen the invitation or select a recent room in the same browser profile and on the same site to restore it after closing the tab. Only one creator tab can run a room at a time. Clearing site data, private browsing, or moving to another device or origin can remove access; relays are not a backup. Rooms whose keys were lost before this feature cannot be recovered from an invitation alone.
 
 ## Encryption and hidden votes
 
@@ -54,7 +54,7 @@ A normal refresh restores the participant identity, room state, and private vote
 - Before reveal, participants send a SHA-256 commitment covering the round, participant, vote, and random 256-bit salt. The vote and salt remain on the participant's device.
 - On reveal, participants send the vote and salt for verification. An offline participant's vote remains unrevealed until they return.
 - Relays can observe network metadata and channel identifiers. Ephemeral delivery is a protocol convention, not a guarantee against third-party logging. Anyone with the invitation can access the room.
-- Names, custom decks, and recent invitations use `localStorage`; active session state and keys use `sessionStorage`. Share invitations only with intended participants.
+- Names, custom decks, and recent invitations use `localStorage`; active participant sessions use `sessionStorage`. Creator recovery keys and room snapshots also persist in `localStorage`. Share invitations only with intended participants.
 
 ## Limitations and troubleshooting
 

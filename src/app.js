@@ -12,12 +12,14 @@ const storage = {
 };
 let connectionPendingSince = Date.now(), hadReadyConnection = false, connectionNoticeShown = false, connectionDelayTimer;
 let removedDeck = null;
+let releaseCreatorLock = null;
+let openingRoom = false;
 let customDecks = storage.get('decks', []).filter(d => { try { validateDeck(d); return true; } catch { return false; } }).slice(0, 20);
 let recentRooms = storage.get('recent', []).filter(r => { try { parseInvite(r.token); return typeof r.name === 'string'; } catch { return false; } }).slice(0, 6);
 let relays; try { relays = validateRelays(storage.get('relays', DEFAULT_RELAYS)); } catch { relays = DEFAULT_RELAYS; }
 let privateKey = storage.get('identity', null, true);
 if (!/^[a-f0-9]{64}$/.test(privateKey || '')) { privateKey = randomHex(32); storage.set('identity', privateKey, true); }
-const me = getPublicKey(hexBytes(privateKey));
+let me = getPublicKey(hexBytes(privateKey));
 let engine = null, transport = null, invite = null, relayStatus = [], ticker, presence, readyTimer, stage = '', busy = false;
 let modalType = '', modalContext = {}, customValues = [], committedCustomValues = [], confirmCallback, toastTimer, joining = false;
 const allDecks = () => {
@@ -305,24 +307,56 @@ function waitingScreen() {
   stage = 'waiting';
   app.innerHTML = `<main class="home"><header class="home-header">${brand()}<button class="text-button" data-action="connection">Connection settings</button></header><section class="waiting"><div class="spinner"></div><h1>Finding your table</h1><p>Connecting to the room through encrypted relays.<br>The room creator needs to have their page open.</p><div class="waiting-actions"><button class="secondary" data-action="retry-join">Try again</button><button class="ghost" data-action="home">Back home</button></div><p id="join-status" class="form-error" role="status"></p></section></main>`;
 }
-async function startRoom(info, { name, create = null } = {}) {
-  stopRoom(); invite = info; storage.set('name', name); joining = true;
-  location.hash = `room=${info.token}`;
-  const saved = storage.get(`session:${info.token}`, null, true);
-  engine = new RoomEngine({ me, host: info.host,
-    saved: saved?.me === me ? saved : null,
-    send: message => transport?.send(message) || Promise.resolve(),
-    onChange: state => { if (state?.members[me]) { joining = false; remember(state); renderRoom(); } },
-    onSave: saved => storage.set(`session:${info.token}`, { ...saved, me }, true),
-    onError: message => { if (stage === 'waiting') { const e = $('#join-status'); if (e) e.textContent = message; } else toast(message); },
+function creatorBackup(info) {
+  const backup = storage.get(`creator:${info.token}`, null);
+  try {
+    if (backup?.saved?.state && getPublicKey(hexBytes(backup.privateKey)) === info.host && backup.saved.me === info.host) return backup;
+  } catch { /* Ignore invalid local backups. */ }
+  return null;
+}
+async function acquireCreatorLock(token) {
+  if (!navigator.locks) throw Error('This browser cannot safely restore creator rooms. Use a current browser over HTTPS.');
+  return new Promise((resolve, reject) => {
+    navigator.locks.request(`poker:creator:${token}`, { ifAvailable: true }, lock => {
+      if (!lock) { reject(Error('This room is already open as creator in another tab. Close that tab and try again.')); return; }
+      return new Promise(release => resolve(release));
+    }).catch(reject);
   });
-  if (create) engine.create(create.name, create.deck, name);
-  else if (engine.state?.members[me]) renderRoom(); else waitingScreen();
-  await connectTransport();
-  ticker = setInterval(() => engine?.tick().catch(() => {}), 10_000);
-  presence = setInterval(renderConnection, 5000);
-  if (!engine.isHost) joinRoom(name, true);
-  else engine.publish();
+}
+async function startRoom(info, { name, create = null } = {}) {
+  if (openingRoom) return;
+  openingRoom = true;
+  try {
+    stopRoom();
+    const backup = create ? null : creatorBackup(info);
+    const roomKey = backup?.privateKey || privateKey;
+    const roomMe = getPublicKey(hexBytes(roomKey));
+    if (roomMe === info.host) releaseCreatorLock = await acquireCreatorLock(info.token);
+    privateKey = roomKey; me = roomMe;
+    storage.set('identity', privateKey, true);
+    invite = info; storage.set('name', name); joining = true;
+    location.hash = `room=${info.token}`;
+    const saved = backup?.saved || storage.get(`session:${info.token}`, null, true);
+    engine = new RoomEngine({ me, host: info.host,
+      saved: saved?.me === me ? saved : null,
+      send: message => transport?.send(message) || Promise.resolve(),
+      onChange: state => { if (state?.members[me]) { joining = false; remember(state); renderRoom(); } },
+      onSave: saved => {
+        const snapshot = { ...saved, me };
+        storage.set(`session:${info.token}`, snapshot, true);
+        if (me === info.host && saved.state) storage.set(`creator:${info.token}`, { privateKey, saved: snapshot });
+      },
+      onError: message => { if (stage === 'waiting') { const e = $('#join-status'); if (e) e.textContent = message; } else toast(message); },
+    });
+    if (create) engine.create(create.name, create.deck, name);
+    else if (engine.state?.members[me]) { engine.save(); renderRoom(); } else waitingScreen();
+    await connectTransport();
+    ticker = setInterval(() => engine?.tick().catch(() => {}), 10_000);
+    presence = setInterval(renderConnection, 5000);
+    if (!engine.isHost) joinRoom(name, true);
+    else engine.publish();
+  } catch (error) { stopRoom(); throw error; }
+  finally { openingRoom = false; }
 }
 async function connectTransport() {
   hadReadyConnection = false; connectionNoticeShown = false; connectionPendingSince = Date.now();
@@ -353,16 +387,23 @@ async function joinRoom(name, explicitJoin = false) {
   await joinPromise;
 }
 function stopRoom() {
+  releaseCreatorLock?.(); releaseCreatorLock = null;
   clearInterval(ticker); clearInterval(presence); clearTimeout(readyTimer); clearTimeout(connectionDelayTimer);
   hadReadyConnection = false; connectionNoticeShown = false; connectionPendingSince = Date.now();
   engine?.close(); transport?.close(); engine = null; transport = null; invite = null; relayStatus = []; joinPromise = null; joining = false;
 }
 function goHome() {
   const leave = () => { engine?.send({ type: 'request', id: randomHex(), action: 'leave', data: {}, round: engine?.state?.round.id }); stopRoom(); history.replaceState(null, '', location.pathname + location.search); closeModal(); renderHome(); };
-  if (engine?.isHost && Object.values(engine.state?.members || {}).filter(m => m.online).length > 1) ask('Leave your room?', 'You are the room creator. Voting will pause for the team until you return to this room in this tab.', leave, 'Leave room');
+  if (engine?.isHost && Object.values(engine.state?.members || {}).filter(m => m.online).length > 1) ask('Leave your room?', 'You are the room creator. Voting will pause for the team until you reopen this room in this browser.', leave, 'Leave room');
   else leave();
 }
 function promptJoin(info) {
+  const backup = creatorBackup(info);
+  if (backup) {
+    closeModal();
+    startRoom(info, { name: backup.saved.state.members[info.host]?.name || storage.get('name', 'Guest') }).catch(error => toast(error.message));
+    return;
+  }
   modalContext = { invite: info };
   showModal('Take a seat', `<p class="modal-description">Enter your name to join this room.</p><form id="join-room"><div class="field"><label for="join-name">Your name</label><input id="join-name" name="name" maxlength="32" required autofocus value="${escape(storage.get('name', ''))}" autocomplete="given-name"></div><div class="modal-actions"><button type="button" class="ghost" data-action="close-modal">Cancel</button><button class="primary" type="submit">Join room</button></div></form>`, 'join');
 }
@@ -693,6 +734,8 @@ document.addEventListener('keydown', event => {
 modal.addEventListener('click', event => { if (event.target === modal) closeModal(); });
 modal.addEventListener('close', () => { modalType = ''; });
 document.addEventListener('visibilitychange', () => { if (!document.hidden && engine) { engine.tick(); if (!engine.isHost) joinRoom(storage.get('name', 'Guest')); } });
+window.addEventListener('pagehide', () => { engine?.save(); stopRoom(); });
+window.addEventListener('pageshow', event => { if (event.persisted) location.reload(); });
 window.addEventListener('online', () => { if (engine) connectTransport(); });
 window.addEventListener('hashchange', () => {
   const token = new URLSearchParams(location.hash.slice(1)).get('room');
@@ -700,6 +743,15 @@ window.addEventListener('hashchange', () => {
   if (!token) { stopRoom(); renderHome(); return; }
   try { promptJoin(parseInvite(token)); } catch (e) { toast(e.message); }
 });
+try {
+  for (let i = 0; i < sessionStorage.length; i++) {
+    const key = sessionStorage.key(i);
+    if (!key?.startsWith('poker:session:')) continue;
+    const token = key.slice('poker:session:'.length), info = parseInvite(token);
+    const saved = storage.get(`session:${token}`, null, true);
+    if (info.host === me && saved?.me === me && saved.state && !creatorBackup(info)) storage.set(`creator:${token}`, { privateKey, saved });
+  }
+} catch { /* Storage may be unavailable. */ }
 renderHome();
 const initialToken = new URLSearchParams(location.hash.slice(1)).get('room');
 if (initialToken) {
