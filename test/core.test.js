@@ -194,3 +194,24 @@ test('only creator can remove a participant; heartbeat cannot rejoin but explici
   await guest.vote('5');
   assert.ok(host.state.round.commits[guest.me]);
 });
+
+test('agreed estimates sync without overwriting averages and reset for a new vote', async t => {
+  const { host, add } = setup(t), guest = add();
+  await guest.request('join', { name: 'Bob' });
+  await host.request('tasks', { titles: ['Estimate test'] });
+  const id = host.state.activeTask;
+  await assert.rejects(guest.request('estimate', { id, value: '8' }), /Reveal/);
+  await host.vote('5'); await guest.vote('8'); await host.request('reveal');
+  await until(() => Object.keys(host.state.round.reveals).length === 2);
+  await guest.request('estimate', { id, value: '8' });
+  await until(() => guest.state.tasks[0].estimate === '8');
+  assert.equal(host.state.tasks[0].result, 6.5);
+  await assert.rejects(host.request('estimate', { id, value: '99' }), /current deck/);
+  await host.request('estimate', { id, value: null });
+  assert.equal(host.state.tasks[0].estimate, null);
+  assert.equal(host.state.tasks[0].result, 6.5);
+  await host.request('estimate', { id, value: '0' });
+  assert.equal(host.state.tasks[0].estimate, '0');
+  await host.request('reset');
+  assert.equal(host.state.tasks[0].estimate, null);
+});

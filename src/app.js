@@ -188,10 +188,10 @@ function renderRoom() {
   const task = s.tasks.find(t => t.id === s.activeTask);
   const taskInfo = task ? parseTask(task) : null;
   setHTML('#round-heading', `<h1 title="${escape(taskInfo?.title || 'Free voting')}">${escape(taskInfo?.title || 'Free voting')}</h1><p class="task-meta">${task ? `<span>Task ${s.tasks.indexOf(task) + 1} of ${s.tasks.length}</span>${taskInfo.url ? `<a href="${escape(taskInfo.url)}" target="_blank" rel="noopener noreferrer">${taskLinkIcon}<span>Open task</span></a>` : ''}` : "Voting that isn’t tied to a task."}</p>`);
-  $('#task-count').textContent = s.tasks.length ? `${s.tasks.filter(t => t.result !== null).length} of ${s.tasks.length} estimated` : '';
+  $('#task-count').textContent = s.tasks.length ? `${s.tasks.filter(t => (t.estimate != null || t.result !== null)).length} of ${s.tasks.length} estimated` : '';
   setHTML('#task-list', [{ id: null, title: 'Free voting', result: null }, ...s.tasks].map(t => {
     const info = parseTask(t), active = t.id === s.activeTask;
-    return `<div class="task-item ${!t.id ? 'free-voting' : ''} ${active ? 'active' : ''}"><button class="task-select-overlay" data-action="select-task" data-id="${t.id || ''}" aria-label="Select task ${escape(info.title)}" ${active ? 'aria-current="true"' : ''}></button>${!t.id ? '<svg class="free-mode-icon" width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect x="4" y="5" width="13" height="18" rx="3" transform="rotate(-12 10 14)" fill="currentColor" opacity=".18"/><rect x="11" y="4" width="13" height="19" rx="3" stroke="currentColor" stroke-width="1.6" transform="rotate(8 17 14)"/></svg>' : ''}<div class="task-content">${info.url ? `<a class="task-title-link" href="${escape(info.url)}" target="_blank" rel="noopener noreferrer" ><span class="task-title-text">${escape(info.title)}</span></a>` : `<strong class="task-title-button" ><span class="task-title-text">${escape(info.title)}</span></strong>`}${!t.id ? '<span class="task-state">Not tied to a task</span>' : ''}</div>${!t.id ? `<span class="free-mode-indicator" aria-hidden="true">${active ? '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 8.5 6 11.5 13 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}</span>` : ''}${t.result !== null ? `<span class="task-result">${escape(t.result)}</span>` : ''}${t.id ? `<button class="icon-button task-edit" data-action="edit-task" data-id="${t.id}" aria-label="Edit task ${escape(info.title)}" title="Edit task"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>` : ''}${t.id ? `<button ${active ? 'disabled style="visibility:hidden"' : ''} class="icon-button task-delete" data-action="delete-task" data-id="${t.id}" aria-label="Remove ${escape(info.title)}" title="Delete task">${trashIcon}</button>` : ''}</div>`;
+    return `<div class="task-item ${!t.id ? 'free-voting' : ''} ${active ? 'active' : ''}"><button class="task-select-overlay" data-action="select-task" data-id="${t.id || ''}" aria-label="Select task ${escape(info.title)}" ${active ? 'aria-current="true"' : ''}></button>${!t.id ? '<svg class="free-mode-icon" width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect x="4" y="5" width="13" height="18" rx="3" transform="rotate(-12 10 14)" fill="currentColor" opacity=".18"/><rect x="11" y="4" width="13" height="19" rx="3" stroke="currentColor" stroke-width="1.6" transform="rotate(8 17 14)"/></svg>' : ''}<div class="task-content">${info.url ? `<a class="task-title-link" href="${escape(info.url)}" target="_blank" rel="noopener noreferrer" ><span class="task-title-text">${escape(info.title)}</span></a>` : `<strong class="task-title-button" ><span class="task-title-text">${escape(info.title)}</span></strong>`}${!t.id ? '<span class="task-state">Not tied to a task</span>' : ''}</div>${!t.id ? `<span class="free-mode-indicator" aria-hidden="true">${active ? '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 8.5 6 11.5 13 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}</span>` : ''}${t.estimate != null || t.result !== null ? `<span tabindex="0" class="task-result ${t.estimate != null ? 'agreed-result' : ''}" data-tooltip="${escape(t.estimate != null ? `Agreed estimate: ${t.estimate} · Average: ${t.result ?? '—'}` : `Average: ${t.result}`)}">${t.estimate != null ? '✓ ' : ''}${escape(t.estimate ?? t.result)}</span>` : ''}${t.id ? `<button class="icon-button task-edit" data-action="edit-task" data-id="${t.id}" aria-label="Edit task ${escape(info.title)}" title="Edit task"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15v5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>` : ''}${t.id ? `<button ${active ? 'disabled style="visibility:hidden"' : ''} class="icon-button task-delete" data-action="delete-task" data-id="${t.id}" aria-label="Remove ${escape(info.title)}" title="Delete task">${trashIcon}</button>` : ''}</div>`;
   }).join(''));
   $('#tasks-empty').textContent = s.tasks.length ? '' : 'Add a task or paste a list to get started.';
 
@@ -205,7 +205,9 @@ function renderRoom() {
   } else {
     const results = summary(Object.values(r.reveals).map(v => v.value));
     const missing = voted - results.total;
-    setHTML('#table-content', `<div class="result-top"><div class="average"><strong>${results.average ?? '—'}</strong><small>average</small></div><span class="votes-badge">Votes: ${results.total}</span></div>${results.consensus ? '<p class="consensus">Everyone agreed</p>' : ''}<div class="distribution">${s.deck.cards.filter(v => results.counts[v]).map(v => `<div class="distribution-row"><span class="result-card ${special(v) ? 'special-card' : ''}" style="--card-color:${color(v, s.deck.cards)}">${escape(v)}</span><div class="bar-track"><div class="bar-fill" style="width:${results.counts[v] / results.total * 100}%;--card-color:${special(v) ? '#baa7d3' : color(v, s.deck.cards)}"></div></div><div class="voter-dots">${Object.entries(r.reveals).filter(([, b]) => b.value === v).slice(0, 6).map(([pk]) => `<span class="voter-dot" title="${escape(r.names[pk])}" style="--avatar-color:${avatarColor(pk)}"><span class="avatar-initial">${initial(r.names[pk] || '?')}</span></span>`).join('')}</div><span>${results.counts[v]}</span></div>`).join('')}</div>${missing ? `<p class="missing-votes">${missing} ${missing === 1 ? 'vote has' : 'votes have'} not been revealed. Waiting for ${missing === 1 ? 'the participant' : 'participants'} to reconnect.</p>` : ''}<button class="primary" data-action="reset">New round</button>`);
+    const task = s.tasks.find(t => t.id === s.activeTask);
+    const estimateControl = task ? `<div class="estimate-control"><button class="estimate-trigger" data-action="estimate-picker" aria-haspopup="dialog">${task.estimate != null ? '<svg class="estimate-check" viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3 3 7-7"/></svg>' : ''}<span class="estimate-label">${task.estimate != null ? `Agreed: ${escape(task.estimate)}` : 'Set estimate'}</span><svg class="estimate-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button><div id="estimate-picker" class="estimate-popover" popover role="dialog" aria-label="Agreed estimate"><strong>Agreed estimate</strong><p>Choose the team's final estimate.</p><div class="estimate-cards">${s.deck.cards.map(v => `<button class="hand-card ${special(v) ? 'special-card' : ''}" style="--card-color:${color(v, s.deck.cards)}" data-action="set-estimate" data-id="${task.id}" data-value="${escape(v)}" aria-label="Set estimate to ${escape(v)}" aria-pressed="${task.estimate === v}">${cardFace(v)}</button>`).join('')}</div>${task.estimate != null ? `<button class="text-button" data-action="clear-estimate" data-id="${task.id}">Use average instead</button>` : ''}</div></div>` : '';
+    setHTML('#table-content', `<div class="result-top"><div class="average"><strong>${results.average ?? '—'}</strong><small>average</small></div>${estimateControl}</div>${results.consensus ? '<p class="consensus">Everyone agreed</p>' : ''}<div class="distribution">${s.deck.cards.filter(v => results.counts[v]).map(v => `<div class="distribution-row"><span class="result-card ${special(v) ? 'special-card' : ''}" style="--card-color:${color(v, s.deck.cards)}">${escape(v)}</span><div class="bar-track"><div class="bar-fill" style="width:${results.counts[v] / results.total * 100}%;--card-color:${special(v) ? '#baa7d3' : color(v, s.deck.cards)}"></div></div><div class="voter-dots">${Object.entries(r.reveals).filter(([, b]) => b.value === v).slice(0, 6).map(([pk]) => `<span class="voter-dot" title="${escape(r.names[pk])}" style="--avatar-color:${avatarColor(pk)}"><span class="avatar-initial">${initial(r.names[pk] || '?')}</span></span>`).join('')}</div><span>${results.counts[v]}</span></div>`).join('')}</div>${missing ? `<p class="missing-votes">${missing} ${missing === 1 ? 'vote has' : 'votes have'} not been revealed. Waiting for ${missing === 1 ? 'the participant' : 'participants'} to reconnect.</p>` : ''}<div class="results-footer"><span class="results-vote-count">${results.total} ${results.total === 1 ? 'vote' : 'votes'}</span><button class="primary" data-action="reset">New round</button></div>`);
   }
   const selected = engine.confirmedBallot?.value ?? null;
   setHTML('#dock-hint', `<span>${self.observer ? 'You’re watching this round.' : revealed ? 'Cards are revealed. Start a new round to vote again.' : selected ? 'Vote received. You can change it until the cards are revealed.' : 'Pick a card'}</span><button class="text-button" data-action="role" ${revealed ? 'disabled' : ''}>${self.observer ? 'Join voting' : 'Just watch'}</button>`);
@@ -495,15 +497,16 @@ function hideTaskTooltip() {
 function showTaskTooltip(event) {
   const row = event.target.closest?.('.task-item');
   if (!row || event.target.closest('.icon-button')) { hideTaskTooltip(); return; }
-  const title = row.querySelector('.task-title-link,.task-title-button');
-  if (!title || title.scrollWidth <= title.clientWidth + 1) { hideTaskTooltip(); return; }
-  const anchor = event.target.closest('a,button') || row.querySelector('.task-select-overlay');
+  const badge = event.target.closest('[data-tooltip]');
+  const title = badge || row.querySelector('.task-title-link,.task-title-button');
+  if (!title || (!badge && title.scrollWidth <= title.clientWidth + 1)) { hideTaskTooltip(); return; }
+  const anchor = badge || event.target.closest('a,button') || row.querySelector('.task-select-overlay');
   if (tooltipAnchor === anchor) return;
   hideTaskTooltip();
   tooltipAnchor = anchor;
   tooltipTimer = setTimeout(() => {
     if (!anchor.isConnected) { hideTaskTooltip(); return; }
-    taskTooltip.textContent = title.textContent;
+    taskTooltip.textContent = badge?.dataset.tooltip || title.textContent;
     taskTooltip.hidden = false;
     const rect = title.getBoundingClientRect(), box = taskTooltip.getBoundingClientRect();
     taskTooltip.style.left = Math.max(12, Math.min(rect.left, innerWidth - box.width - 12)) + 'px';
@@ -591,6 +594,17 @@ document.addEventListener('click', async event => {
         finally { busy = false; button.classList.remove('pending'); button.removeAttribute('aria-busy'); }
         break;
       }
+      case 'estimate-picker': {
+        const picker = $('#estimate-picker'); picker.showPopover();
+        const rect = button.getBoundingClientRect();
+        picker.style.left = `${Math.max(12, Math.min(rect.left, innerWidth - picker.offsetWidth - 12))}px`;
+        picker.style.top = `${Math.max(12, Math.min(rect.bottom + 10, innerHeight - picker.offsetHeight - 12))}px`;
+        picker.querySelector('button')?.focus(); break;
+      }
+      case 'set-estimate': case 'clear-estimate':
+        $('#estimate-picker')?.hidePopover();
+        await act('estimate', { id: button.dataset.id, value: button.dataset.action === 'clear-estimate' ? null : button.dataset.value });
+        $('[data-action="estimate-picker"]')?.focus(); break;
       case 'reveal': await act('reveal'); break;
       case 'reset': await act('reset'); break;
       case 'role': await act('role', { observer: !engine.state.members[me].observer }); break;

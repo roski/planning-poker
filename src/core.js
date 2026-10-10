@@ -187,6 +187,7 @@ export class RoomEngine {
         case 'commit':
           if (r.phase !== 'voting' || member.observer) throw Error('You cannot vote in this round.');
           if (data.hash !== null && !/^[a-f0-9]{64}$/.test(data.hash)) throw Error('Invalid vote commitment.');
+          if (data.hash !== null && s.activeTask) s.tasks.find(t => t.id === s.activeTask).estimate = null;
           if (data.hash === null) delete r.commits[author]; else r.commits[author] = data.hash;
           break;
         case 'reveal':
@@ -201,7 +202,15 @@ export class RoomEngine {
           r.reveals[author] = { value: data.value, salt: data.salt };
           if (s.activeTask) s.tasks.find(t => t.id === s.activeTask).result = summary(Object.values(r.reveals).map(v => v.value)).average;
           break;
+        case 'estimate': {
+          const task = s.tasks.find(t => t.id === data.id && t.id === s.activeTask);
+          if (!task || r.phase !== 'revealed') throw Error('Reveal a task vote before setting its estimate.');
+          if (data.value !== null && !s.deck.cards.includes(data.value)) throw Error('Choose a card from the current deck.');
+          task.estimate = data.value;
+          break;
+        }
         case 'reset':
+          if (s.activeTask) s.tasks.find(t => t.id === s.activeTask).estimate = null;
           s.round = newRound(); break;
         case 'role':
           if (r.phase !== 'voting') throw Error('Change your role in the next round.');
