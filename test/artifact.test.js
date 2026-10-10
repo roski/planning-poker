@@ -11,5 +11,5 @@ test('distribution is one self-contained HTML with no external scripts, styles o
   assert(html.includes('THIRD_PARTY_NOTICES') === false);
   assert(html.includes('MIT License'));
   assert(html.includes('prefers-reduced-motion'));
-  assert(Buffer.byteLength(html) < 250_000);
+  assert(Buffer.byteLength(html) < 270_000);
 });

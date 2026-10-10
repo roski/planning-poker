@@ -93,3 +93,11 @@ After changing application sources, run the build and commit the updated `index.
 ## License
 
 [MIT](LICENSE). Third-party license notices are retained in the repository and built application.
+
+## Optional analytics
+
+The official GitHub Pages site uses Google Analytics 4 (`G-R1YYF0792Q`) only after a visitor selects **Allow analytics**. No Google tag is loaded before consent or after a remembered decline. The **Privacy** control lets visitors change their choice. Local previews and other origins do not enable analytics.
+
+Events are limited to page views, room creation, successful joins, round reveals, and new rounds. Page location is fixed to the public homepage; query strings, room fragments, referrers, participant names, task contents, and vote values are not included in application event payloads. Google receives ordinary browser/device information and uses analytics cookies after consent. Enhanced measurement, Google signals, and advertising personalization are disabled for this integration. Keep enhanced measurement disabled when changing the stream settings.
+
+Analytics adds an optional Google-hosted runtime script. The application itself remains usable without it. See [Google's privacy policy](https://policies.google.com/privacy).

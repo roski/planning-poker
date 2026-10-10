@@ -1,3 +1,5 @@
+import { initAnalytics } from './analytics.js';
+const analytics = initAnalytics();
 import { connectionView, connectionMarkup, connectionLostMessage } from './connection.js';
 import { DECKS, RoomEngine, PRESENCE_TIMEOUT, randomHex, hexBytes, newSecret, parseInvite, validateDeck, summary, parseTask, consumeCardInput, roomDisplayName, memberColor, taskInput, splitTaskList } from './core.js';
 import { RelayTransport, DEFAULT_RELAYS, getPublicKey, validateRelays } from './transport.js';
@@ -348,7 +350,7 @@ async function startRoom(info, { name, create = null } = {}) {
       },
       onError: message => { if (stage === 'waiting') { const e = $('#join-status'); if (e) e.textContent = message; } else toast(message); },
     });
-    if (create) engine.create(create.name, create.deck, name);
+    if (create) { engine.create(create.name, create.deck, name); analytics.track('room_created'); }
     else if (engine.state?.members[me]) { engine.save(); renderRoom(); } else waitingScreen();
     await connectTransport();
     ticker = setInterval(() => engine?.tick().catch(() => {}), 10_000);
@@ -385,6 +387,7 @@ async function joinRoom(name, explicitJoin = false) {
     const el = $('#join-status'); if (el) el.textContent = `${error.message} The room may have ended.`; else toast(error.message);
   }).finally(() => { joinPromise = null; });
   await joinPromise;
+  if (explicitJoin && engine?.state?.members[me] && !engine.state.members[me].removed) analytics.track('room_joined');
 }
 function stopRoom() {
   releaseCreatorLock?.(); releaseCreatorLock = null;
@@ -514,12 +517,12 @@ function openProfile() {
   showModal('Your profile', `<form id="profile-form"><div class="field"><label for="profile-name">Your name</label><input id="profile-name" name="name" maxlength="32" required value="${escape(member.name)}"></div><p class="modal-description">${engine.isHost ? 'You created this room. Keep this tab open so everyone can stay in sync.' : 'This name is visible to everyone in the room.'}</p><div class="modal-actions"><button class="ghost" type="button" data-action="home">Leave room</button><button class="primary" type="submit">Save name</button></div></form>`, 'profile');
 }
 function openAbout() {
-  showModal('A little less guessing', `<p class="modal-description">Planning Poker is a free, open-source tool for better team conversations. The complete app lives in a single HTML file.</p><ul class="about-list"><li>No registration, database, analytics, or runtime CDN downloads.</li><li>Room messages are encrypted in your browser. Public relays can see connection metadata, but do not receive the room key.</li><li>Estimates stay on each device until reveal. A cryptographic commitment checks that the revealed card matches the vote.</li><li>The room creator coordinates the session. Keep their tab open. Rooms are temporary; recent links aren’t server backups.</li><li>Names, custom decks and recent links are saved on this device. Relay availability and corporate access can vary.</li></ul><p class="modal-help">MIT license · Nostr protocol · Built with nostr-tools and noble cryptography. Licenses are included in this HTML file.</p><div class="modal-actions"><button class="primary" data-action="close-modal">Let’s estimate</button></div>`, 'about');
+  showModal('A little less guessing', `<p class="modal-description">Planning Poker is a free, open-source tool for better team conversations. The complete app lives in a single HTML file.</p><ul class="about-list"><li>No registration or database. Optional Google Analytics loads only with your consent on the official website. Use Privacy to change your choice.</li><li>Room messages are encrypted in your browser. Public relays can see connection metadata, but do not receive the room key.</li><li>Estimates stay on each device until reveal. A cryptographic commitment checks that the revealed card matches the vote.</li><li>The room creator coordinates the session. Keep their tab open. Rooms are temporary; recent links aren’t server backups.</li><li>Names, custom decks and recent links are saved on this device. Relay availability and corporate access can vary.</li></ul><p class="modal-help">MIT license · Nostr protocol · Built with nostr-tools and noble cryptography. Licenses are included in this HTML file.</p><div class="modal-actions"><button class="primary" data-action="close-modal">Let’s estimate</button></div>`, 'about');
 }
 async function act(action, data = {}) {
   if (busy) throw Error('Please wait for your previous action to sync.');
   busy = true; document.body.classList.add('busy');
-  try { await engine.request(action, data); }
+  try { await engine.request(action, data); if (action === 'reveal') analytics.track('round_revealed'); if (action === 'reset') analytics.track('round_started'); }
   finally { busy = false; document.body.classList.remove('busy'); }
 }
 const taskTooltip = document.createElement('div');
